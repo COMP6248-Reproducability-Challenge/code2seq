@@ -129,11 +129,11 @@ dmypy.json
 .pyre/
 
 # LaTeX files
-.blg
-.aux
-.bbl
-.bcf
-.out
-.toc
-.log
-.synctex.gz
+*.blg
+*.aux
+*.bbl
+*.bcf
+*.out
+*.toc
+*.log
+*.synctex.gz
