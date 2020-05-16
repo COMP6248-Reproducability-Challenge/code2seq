@@ -112,13 +112,6 @@ class Code2SeqDataset(Dataset):
 
 
 if __name__ == "__main__":
-    from argparse import ArgumentParser
-
-    parser = ArgumentParser()
-    parser.add_argument('--load_path', '-l', dest='load_path', default=None, help="Load path for dataset.")
-    parser.add_argument('--save_path', '-s', dest='save_path', default=None, help="Load path for dataset.")
-    args = parser.parse_args()
-
     config = Config.get_default_config(None)
 
     test_set = Code2SeqDataset(config.TEST_PATH, config=config)
@@ -127,10 +120,10 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True)
     for (start_leaf, ast_path, end_leaf, target) in train_loader:
+        print('Leaf 1', start_leaf)
+        print('AST Path', ast_path)
+        print('Leaf 2', end_leaf)
+        print('Target', target)
+        print(" ".join([test_set.index_to_target.get(x.item(), '??') for x in target[0]]))
         break
-        # print('Leaf 1', start_leaf)
-        # print('AST Path', ast_path)
-        # print('Leaf 2', end_leaf)
-        # print('Target', target)
-        # print(" ".join([test_set.index_to_target.get(x.item(), '??') for x in target[0]]))
 
