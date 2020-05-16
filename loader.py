@@ -11,6 +11,7 @@ from config import Config
 
 class Code2SeqDataset(Dataset):
     def __init__(self, data_file, config):
+        super(Dataset, self).__init__()
         self.data_file = None
         self.config = config
 
@@ -118,12 +119,12 @@ if __name__ == "__main__":
     train_set = Code2SeqDataset(config.TRAIN_PATH, config=config)
     val_set = Code2SeqDataset(config.VAL_PATH, config=config)
 
-    train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=6)
     for (start_leaf, ast_path, end_leaf, target) in train_loader:
-        print('Leaf 1', start_leaf)
-        print('AST Path', ast_path)
-        print('Leaf 2', end_leaf)
-        print('Target', target)
+        # print('Leaf 1', start_leaf)
+        # print('AST Path', ast_path)
+        # print('Leaf 2', end_leaf)
+        # print('Target', target)
         print(" ".join([test_set.index_to_target.get(x.item(), '??') for x in target[0]]))
         break
 
