@@ -10,7 +10,7 @@ from config import Config
 
 
 class Code2SeqDataset(Dataset):
-    def __init__(self, data_file, config, max_dict):
+    def __init__(self, data_file, config):
         self.data_file = None
         self.config = config
 
@@ -43,13 +43,11 @@ class Code2SeqDataset(Dataset):
         print("Processing...")
         self.data_file = data_file
         self.line_observations = []
-        # max_length_start_leaf, max_length_ast_path, max_length_end_leaf, max_length_target = 0, 0, 0, 0
         with open(self.data_file, 'r') as data:
             num_lines = sum(1 for line in data)
         with open(self.data_file, 'r') as data:
             pbar = tqdm(total=num_lines)
             line = 0
-            # for _ in range(10_000):
             while data:
                 if line > num_lines:
                     break
@@ -58,35 +56,13 @@ class Code2SeqDataset(Dataset):
                     line += 1
                     self.line_observations.append(0)
                     continue
-                # word = row[0]
-                # contexts = row[1:self.config.MAX_CONTEXTS + 1]
-                # len_target = len(word.split("|"))
-                # for context in contexts:
-                #     leaf_node_1, ast_path, leaf_node_2 = context.split(',')
-                #     len_start_leaf = len(leaf_node_1.split("|"))
-                #     len_ast = len(ast_path.split("|"))
-                #     len_end_leaf = len(leaf_node_2.split("|"))
-                #     if len_start_leaf > max_length_start_leaf:
-                #         max_length_start_leaf = len_start_leaf
-                #     if max_length_end_leaf < len_end_leaf:
-                #         max_length_end_leaf = len_end_leaf
-                #     if len_ast > max_length_ast_path:
-                #         max_length_ast_path = len_ast
-                # if len_target > max_length_target:
-                #     max_length_target = len_target
-                # self.line_observations.append(len(contexts))
                 line += 1
                 pbar.update(1)
                 self.line_observations.append(min(len(row)-1, config.MAX_CONTEXTS))
             pbar.close()
-        # self.max_length_target = max_length_target
-        # self.max_length_start_leaf = max_length_start_leaf
-        # self.max_length_ast_path = max_length_ast_path
-        # self.max_length_end_leaf = max_length_end_leaf
-        self.max_length_target = max_dict['max_length_target']
-        self.max_length_start_leaf = max_dict['max_length_start_leaf']
-        self.max_length_ast_path = max_dict['max_length_ast_path']
-        self.max_length_end_leaf = max_dict['max_length_end_leaf']
+        self.max_length_target = config.MAX_TARGET_PARTS
+        self.max_length_leaf = config.MAX_NAME_PARTS
+        self.max_length_ast_path = config.MAX_PATH_LENGTH
 
     def __len__(self):
         return sum(self.line_observations)
@@ -97,25 +73,36 @@ class Code2SeqDataset(Dataset):
             if running_total + x >= item:
                 line = i + 1
                 break
-            running_total += x
+            else:
+                running_total += x
 
         row = getline(os.path.abspath(self.data_file), line)
         row = row.split()
         word = row[0]
-        target = [self.target_to_index.get(w, self.target_to_index['<UNK>']) for w in word.split('|')]
+
         context = row[item - running_total]
         leaf_node_1, ast_path, leaf_node_2 = context.split(',')
+        if len(leaf_node_1) > self.max_length_leaf:
+            leaf_node_1 = leaf_node_1[:self.max_length_leaf]
+        if len(ast_path) > self.max_length_ast_path:
+            ast_path = ast_path[:self.max_length_ast_path]
+        if len(leaf_node_2) > self.max_length_leaf:
+            leaf_node_2 = leaf_node_2[:self.max_length_leaf]
+        if len(word) > self.max_length_target:
+            word = word[:self.max_length_target]
+
+        target = [self.target_to_index.get(w, self.target_to_index['<UNK>']) for w in word.split('|')]
         leaf_node_1 = [self.subtoken_to_index.get(w, self.subtoken_to_index['<UNK>']) for w in leaf_node_1.split('|')]
         ast_path = [self.node_to_index.get(w, self.node_to_index['<UNK>']) for w in ast_path.split('|')]
         leaf_node_2 = [self.subtoken_to_index.get(w, self.subtoken_to_index['<UNK>']) for w in leaf_node_2.split('|')]
 
-        start_leaf_vector = torch.zeros(size=(self.max_length_start_leaf,))
+        start_leaf_vector = torch.zeros(size=(self.max_length_leaf,))
         start_leaf_vector[:len(leaf_node_1)] = torch.tensor(leaf_node_1)
 
         ast_path_vector = torch.zeros(size=(self.max_length_ast_path,))
         ast_path_vector[:len(ast_path)] = torch.tensor(ast_path)
 
-        end_leaf_vector = torch.zeros(size=(self.max_length_end_leaf,))
+        end_leaf_vector = torch.zeros(size=(self.max_length_leaf,))
         end_leaf_vector[:len(leaf_node_2)] = torch.tensor(leaf_node_2)
 
         target_vector = torch.zeros(size=(self.max_length_target,))
@@ -134,21 +121,16 @@ if __name__ == "__main__":
 
     config = Config.get_default_config(None)
 
-    # Was easier to just hard code the maximum length for each variable
-    max_dict = {'max_length_target': 40,
-                'max_length_start_leaf': 140,
-                'max_length_ast_path': 10,
-                'max_length_end_leaf': 205}
-
-    test_set = Code2SeqDataset(config.TEST_PATH, config=config, max_dict=max_dict)
-    train_set = Code2SeqDataset(config.TRAIN_PATH, config=config, max_dict=max_dict)
-    val_set = Code2SeqDataset(config.VAL_PATH, config=config, max_dict=max_dict)
+    test_set = Code2SeqDataset(config.TEST_PATH, config=config)
+    train_set = Code2SeqDataset(config.TRAIN_PATH, config=config)
+    val_set = Code2SeqDataset(config.VAL_PATH, config=config)
 
     train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True)
     for (start_leaf, ast_path, end_leaf, target) in train_loader:
-        print('Leaf 1', start_leaf)
-        print('AST Path', ast_path)
-        print('Leaf 2', end_leaf)
-        print('Target', target)
-        print(" ".join([test_set.index_to_target.get(x.item(), '??') for x in target[0]]))
+        break
+        # print('Leaf 1', start_leaf)
+        # print('AST Path', ast_path)
+        # print('Leaf 2', end_leaf)
+        # print('Target', target)
+        # print(" ".join([test_set.index_to_target.get(x.item(), '??') for x in target[0]]))
 
