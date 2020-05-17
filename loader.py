@@ -51,7 +51,7 @@ class Code2SeqDataset(Dataset):
         return len(self.data_file)
 
     def __getitem__(self, item):
-        row = self.data_file[str(item)]["row"].value
+        row = self.data_file[str(item)]["row"][()]
         row = row.split()
 
         word = row[0]
@@ -59,32 +59,49 @@ class Code2SeqDataset(Dataset):
         shuffle(contexts)
         contexts = contexts[:config.MAX_CONTEXTS]
 
+        # Initialise matrices
         start_leaf_matrix = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_leaf))
         ast_path_matrix = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_ast_path))
         end_leaf_matrix = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_leaf))
-        target_matrix = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_target))
+        target_vector = torch.zeros(size=(self.max_length_target,))
+
+        start_leaf_mask = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_leaf))
+        end_leaf_mask = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_leaf))
+        target_mask = torch.zeros(size=(self.max_length_target,))
+
+        context_mask = torch.zeros(size=(config.MAX_CONTEXTS, ))
+        ast_path_lengths = torch.zeros(size=(config.MAX_CONTEXTS, ))
+
         for i, context in enumerate(contexts):
             leaf_node_1, ast_path, leaf_node_2 = context.split(',')
-            if len(leaf_node_1) > self.max_length_leaf:
-                leaf_node_1 = leaf_node_1[:self.max_length_leaf]
-            if len(ast_path) > self.max_length_ast_path:
-                ast_path = ast_path[:self.max_length_ast_path]
-            if len(leaf_node_2) > self.max_length_leaf:
-                leaf_node_2 = leaf_node_2[:self.max_length_leaf]
-            if len(word) > self.max_length_target:
-                word = word[:self.max_length_target]
 
-            target = [self.target_to_index.get(w, self.target_to_index['<UNK>']) for w in word.split('|')]
+            leaf_node_1 = leaf_node_1[:self.max_length_leaf]
+            ast_path = ast_path[:self.max_length_ast_path]
+            leaf_node_2 = leaf_node_2[:self.max_length_leaf]
+
             ast_path = [self.node_to_index.get(w, self.node_to_index['<UNK>']) for w in ast_path.split('|')]
             leaf_node_1 = [self.subtoken_to_index.get(w, self.subtoken_to_index['<UNK>']) for w in leaf_node_1.split('|')]
             leaf_node_2 = [self.subtoken_to_index.get(w, self.subtoken_to_index['<UNK>']) for w in leaf_node_2.split('|')]
 
             start_leaf_matrix[i, :len(leaf_node_1)] = torch.tensor(leaf_node_1)
-            ast_path_matrix[i, :len(ast_path)] = torch.tensor(ast_path)
-            end_leaf_matrix[i, :len(leaf_node_2)] = torch.tensor(leaf_node_2)
-            target_matrix[i, :len(target)] = torch.tensor(target)
+            start_leaf_mask[i, :len(leaf_node_1)] = torch.ones(size=(len(leaf_node_1),))
 
-        return start_leaf_matrix, ast_path_matrix, end_leaf_matrix, target_matrix
+            ast_path_matrix[i, :len(ast_path)] = torch.tensor(ast_path)
+            ast_path_lengths[i] = torch.tensor(len(ast_path))
+
+            end_leaf_matrix[i, :len(leaf_node_2)] = torch.tensor(leaf_node_2)
+            end_leaf_mask[i, :len(leaf_node_2)] = torch.ones(size=(len(leaf_node_2),))
+
+        context_mask[:len(contexts)] = torch.ones(size=(len(contexts),))
+
+        word = word[:self.max_length_target]
+        target = [self.target_to_index.get(w, self.target_to_index['<UNK>']) for w in word.split('|')]
+        target_vector[:len(target)] = torch.tensor(target)
+        target_mask[:len(target)] = torch.ones(size=(len(target),))
+
+        return (start_leaf_matrix, ast_path_matrix, end_leaf_matrix, target_vector,
+                start_leaf_mask, end_leaf_mask, target_mask, context_mask,
+                ast_path_lengths)
 
 
 if __name__ == "__main__":
@@ -96,11 +113,17 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
 
-    for (start_leaf, ast_path, end_leaf, target) in train_loader:
-        print(start_leaf.shape)
-        print(ast_path.shape)
-        print(end_leaf.shape)
-        print(target.shape)
-        print(" ".join([test_set.index_to_target.get(x.item(), '??') for x in target[0, 0, :]]))
+    for train_data in train_loader:
+        print("start_leaf_matrix", train_data[0].shape)
+        print("ast_path_matrix", train_data[1].shape)
+        print("end_leaf_matrix", train_data[2].shape)
+        print("target_vector", train_data[3].shape)
+        print("start_leaf_mask", train_data[4].shape)
+        print("end_leaf_mask", train_data[5].shape)
+        print("target_mask", train_data[6].shape)
+        print("context_mask", train_data[7].shape)
+        print("ast_path_lengths", train_data[8].shape)
+
+        print(" ".join([test_set.index_to_target.get(x.item(), '<UNK>') for x in train_data[3][0]]))
         break
 
