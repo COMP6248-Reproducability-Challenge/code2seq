@@ -44,9 +44,9 @@ class Code2SeqDataset(Dataset):
             Common.load_vocab_from_dict(self.node_to_count, add_values=['<PAD>', '<UNK>'], max_size=None)
         print('Loaded nodes vocab. size: %d' % self.nodes_vocab_size)
 
-        self.max_length_target = config.MAX_TARGET_PARTS
-        self.max_length_leaf = config.MAX_NAME_PARTS
-        self.max_length_ast_path = config.MAX_PATH_LENGTH
+        self.max_length_target = self.config.MAX_TARGET_PARTS
+        self.max_length_leaf = self.config.MAX_NAME_PARTS
+        self.max_length_ast_path = self.config.MAX_PATH_LENGTH
 
     def __len__(self):
         return len(self.data_file)
@@ -58,20 +58,20 @@ class Code2SeqDataset(Dataset):
         word = row[0]
         contexts = row[1:]
         shuffle(contexts)
-        contexts = contexts[:config.MAX_CONTEXTS]
+        contexts = contexts[:self.config.MAX_CONTEXTS]
 
         # Initialise matrices
-        start_leaf_matrix = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_leaf))
-        ast_path_matrix = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_ast_path))
-        end_leaf_matrix = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_leaf))
+        start_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
+        ast_path_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_ast_path))
+        end_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
         target_vector = torch.zeros(size=(self.max_length_target,))
 
-        start_leaf_mask = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_leaf))
-        end_leaf_mask = torch.zeros(size=(config.MAX_CONTEXTS, self.max_length_leaf))
+        start_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
+        end_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
         target_mask = torch.zeros(size=(self.max_length_target,))
 
-        context_mask = torch.zeros(size=(config.MAX_CONTEXTS, ))
-        ast_path_lengths = torch.zeros(size=(config.MAX_CONTEXTS, ))
+        context_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, ))
+        ast_path_lengths = torch.zeros(size=(self.config.MAX_CONTEXTS, ))
 
         for i, context in enumerate(contexts):
             leaf_node_1, ast_path, leaf_node_2 = context.split(',')
