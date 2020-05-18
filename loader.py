@@ -14,7 +14,8 @@ from config import Config
 class Code2SeqDataset(Dataset):
     def __init__(self, data_file, config):
         super(Dataset, self).__init__()
-        self.data_file = data_file
+        data_file += ".h5"
+        self.data_file = h5py.File((config.H5_FOLDER / data_file), mode='r')
         self.config = config
 
         with open(self.config.DICT_PATH, 'rb') as f:
@@ -107,9 +108,9 @@ class Code2SeqDataset(Dataset):
 if __name__ == "__main__":
     config = Config.get_default_config(None)
 
-    test_set = Code2SeqDataset(h5py.File((config.H5_FOLDER / "test.h5"), mode='r'), config=config)
-    train_set = Code2SeqDataset(h5py.File((config.H5_FOLDER / "train.h5"), mode='r'), config=config)
-    val_set = Code2SeqDataset(h5py.File((config.H5_FOLDER / "val.h5"), mode='r'), config=config)
+    test_set = Code2SeqDataset('test', config=config)
+    train_set = Code2SeqDataset('train', config=config)
+    val_set = Code2SeqDataset('val', config=config)
 
     train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
 
