@@ -46,13 +46,14 @@ class Config:
     def __init__(self, args=None):
 
         self.DATA_DIR = Path("./data")
+        self.H5_FOLDER = self.DATA_DIR / "h5"
         self.TRAIN_PATH = self.DATA_DIR / "java-small.train.c2s"
         self.TEST_PATH = self.DATA_DIR / "java-small.test.c2s"
         self.VAL_PATH = self.DATA_DIR / "java-small.val.c2s"
         self.DICT_PATH = self.DATA_DIR / "java-small.dict.c2s"
         self.SAVE_PATH = self.DATA_DIR / "saves/temp_save.sv"
         self.DATASET_PATH = args.save_dataset if args else None
-
+        self.NUM_WORKERS = args.num_workers if args else 0
         self.NUM_EPOCHS = 0
         self.SAVE_EVERY_EPOCHS = 0
         self.PATIENCE = 0
