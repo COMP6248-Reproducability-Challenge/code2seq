@@ -75,7 +75,6 @@ class Code2SeqDataset(Dataset):
         end_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS,
                                             self.max_length_leaf),
                                       dtype=torch.long)
-
         target_vector = torch.zeros(size=(self.max_length_target,),
                                     dtype=torch.long)
 
@@ -83,6 +82,7 @@ class Code2SeqDataset(Dataset):
                                             self.max_length_leaf))
         end_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS,
                                           self.max_length_leaf))
+        target_mask = torch.zeros(size=(self.max_length_target,))
 
         context_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, ))
         ast_path_lengths = torch.zeros(size=(self.config.MAX_CONTEXTS, ))
