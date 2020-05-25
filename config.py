@@ -55,7 +55,6 @@ class Config:
         self.SAVE_PATH = self.DATA_DIR / "saves/temp_save.sv"
         self.DATASET_PATH = args.save_dataset if args else None
         self.NUM_WORKERS = args.num_workers if args else 0
-
         self.NUM_EPOCHS = 0
         self.SAVE_EVERY_EPOCHS = 0
         self.PATIENCE = 0

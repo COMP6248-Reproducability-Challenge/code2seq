@@ -23,19 +23,23 @@ class Dictionaries:
 
         # Get subtoken vocab mapping
         self.subtoken_to_index, self.index_to_subtoken, self.subtoken_vocab_size = \
-            Common.load_vocab_from_dict(self.subtoken_to_count, add_values=[Common.PAD, Common.UNK],
+            Common.load_vocab_from_dict(self.subtoken_to_count,
+                                        add_values=[Common.PAD, Common.UNK],
                                         max_size=self.config.SUBTOKENS_VOCAB_MAX_SIZE)
         print('Loaded subtoken vocab. size: %d' % self.subtoken_vocab_size)
 
         # Get target vocab mapping
         self.target_to_index, self.index_to_target, self.target_vocab_size = \
-            Common.load_vocab_from_dict(self.target_to_count, add_values=[Common.PAD, Common.UNK, Common.SOS],
+            Common.load_vocab_from_dict(self.target_to_count,
+                                        add_values=[Common.PAD, Common.UNK, Common.SOS],
                                         max_size=self.config.TARGET_VOCAB_MAX_SIZE)
         print('Loaded target word vocab. size: %d' % self.target_vocab_size)
 
         # Get node vocab mapping
         self.node_to_index, self.index_to_node, self.nodes_vocab_size = \
-            Common.load_vocab_from_dict(self.node_to_count, add_values=[Common.PAD, Common.UNK], max_size=None)
+            Common.load_vocab_from_dict(self.node_to_count,
+                                        add_values=[Common.PAD, Common.UNK],
+                                        max_size=None)
         print('Loaded nodes vocab. size: %d' % self.nodes_vocab_size)
 
 
@@ -65,13 +69,22 @@ class Code2SeqDataset(Dataset):
         contexts = contexts[:self.config.MAX_CONTEXTS]
 
         # Initialise matrices
-        start_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
-        ast_path_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_ast_path))
-        end_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
-        target_vector = torch.zeros(size=(self.max_length_target + 1,))
+        start_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                              self.max_length_leaf),
+                                        dtype=torch.long)
+        ast_path_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                            self.max_length_ast_path),
+                                       dtype=torch.long)
+        end_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                            self.max_length_leaf),
+                                      dtype=torch.long)
+        target_vector = torch.zeros(size=(self.max_length_target+1,),
+                                    dtype=torch.long)
 
-        start_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
-        end_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
+        start_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                            self.max_length_leaf))
+        end_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                          self.max_length_leaf))
         target_mask = torch.zeros(size=(self.max_length_target,))
 
         context_mask = torch.zeros(size=(self.config.MAX_CONTEXTS,))
@@ -115,9 +128,15 @@ class Code2SeqDataset(Dataset):
         target_vector[1:len(target) + 1] = torch.tensor(target)
         target_mask[:len(target)] = torch.ones(size=(len(target),))
 
-        return (start_leaf_matrix, ast_path_matrix, end_leaf_matrix, target_vector,
-                start_leaf_mask, end_leaf_mask, target_mask, context_mask,
-                ast_path_lengths)
+        return start_leaf_matrix.to(self.device),\
+               ast_path_matrix.to(self.device),\
+               end_leaf_matrix.to(self.device),\
+               target_vector.to(self.device),\
+               start_leaf_mask.to(self.device),\
+               end_leaf_mask.to(self.device),\
+               target_mask.to(self.device),\
+               context_mask.to(self.device),\
+               ast_path_lengths.to(self.device)
 
 
 def get_loaders(conf, dicts):
