@@ -1,13 +1,14 @@
-from common import Common
-from config import Config
-import pickle
-from random import shuffle
-import h5py
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-torch.backends.cudnn.deterministic = True
-torch.manual_seed(999)
+import pickle
+import h5py
+
+from random import shuffle
+
+from common import Common
+from config import Config
+
 
 class Dictionaries:
     def __init__(self, conf):
@@ -139,15 +140,23 @@ class Code2SeqDataset(Dataset):
                ast_path_lengths.to(self.device)
 
 
-def get_loaders(conf, dicts):
-    torch.seed()
-    test_set = Code2SeqDataset('test', conf=conf, dicts=dicts)
-    train_set = Code2SeqDataset('train', conf=conf, dicts=dicts)
-    val_set = Code2SeqDataset('val', conf=conf, dicts=dicts)
+def get_loaders(conf, dicts, device='cpu'):
+    test_set = Code2SeqDataset('test', conf=conf, dicts=dicts, device=device)
+    train_set = Code2SeqDataset('train', conf=conf, dicts=dicts, device=device)
+    val_set = Code2SeqDataset('val', conf=conf, dicts=dicts, device=device)
 
-    test_loader = DataLoader(test_set, batch_size=conf.BATCH_SIZE, shuffle=True, num_workers=conf.NUM_WORKERS)
-    train_loader = DataLoader(train_set, batch_size=conf.BATCH_SIZE, shuffle=True, num_workers=conf.NUM_WORKERS)
-    val_loader = DataLoader(val_set, batch_size=conf.BATCH_SIZE, shuffle=True, num_workers=conf.NUM_WORKERS)
+    test_loader = DataLoader(test_set,
+                             batch_size=conf.BATCH_SIZE,
+                             shuffle=True,
+                             num_workers=conf.NUM_WORKERS)
+    train_loader = DataLoader(train_set,
+                              batch_size=conf.BATCH_SIZE,
+                              shuffle=True,
+                              num_workers=conf.NUM_WORKERS)
+    val_loader = DataLoader(val_set,
+                            batch_size=conf.BATCH_SIZE,
+                            shuffle=True,
+                            num_workers=conf.NUM_WORKERS)
 
     return {
         'TRAIN_LOADER': train_loader,
@@ -159,8 +168,9 @@ def get_loaders(conf, dicts):
 if __name__ == "__main__":
     config = Config.get_default_config(None)
 
+    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     dictionaries = Dictionaries(config)
-    loaders = get_loaders(config, dictionaries)
+    loaders = get_loaders(config, dictionaries, device=device)
 
     for i, train_data in enumerate(loaders['TRAIN_LOADER']):
         print("start_leaf_matrix", train_data[0].shape)
@@ -174,6 +184,7 @@ if __name__ == "__main__":
         print("ast_path_lengths", train_data[8].shape)
 
         for j in range(train_data[3].shape[0]):
-            print(" ".join([dictionaries.index_to_target.get(x.item(), Common.UNK) for x in train_data[3][j]]))
+            print(" ".join([dictionaries.index_to_target.get(x.item(), Common.UNK) 
+                  for x in train_data[3][j]]))
 
         break

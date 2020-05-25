@@ -3,10 +3,11 @@ import torch.nn.functional as F
 from torch import nn
 
 from config import Config
+from common import Common
 
 
 # TODO: Fix this... 
-config = Config.get_debug_config(None)
+config = Config.get_default_config(None)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -98,12 +99,13 @@ class Decoder(nn.Module):
 
 
 class Code2Seq(nn.Module):
-    def __init__(self, subtoken_input_dim, nodes_input_dim, target_input_dim):
+    def __init__(self, dictionaries):
         super(Code2Seq, self).__init__()
 
-        self.target_vocab_size = target_input_dim
-        self.encoder = Encoder(subtoken_input_dim, nodes_input_dim)
-        self.decoder = Decoder(target_input_dim)
+        self.dict = dictionaries
+        self.encoder = Encoder(self.dict.subtoken_vocab_size,
+                               self.dict.nodes_vocab_size)
+        self.decoder = Decoder(self.dict.target_vocab_size)
 
     def attention(self, encode_context, context_mask, hidden):
         h_t, _ = hidden[0]
@@ -143,18 +145,19 @@ class Code2Seq(nn.Module):
         fake_encoder_state = tuple([init_state, init_state] for _ in
                                    range(config.NUM_DECODER_LAYERS))
 
-        # 1 = BOS
-        decoder_input = torch.tensor([1] * config.BATCH_SIZE, 
+        # Empty input to decoder, only containing start-of-sequence tag
+        SOS_token = self.dict.target_to_index[Common.SOS]
+        decoder_input = torch.tensor([SOS_token] * config.BATCH_SIZE, 
                                      dtype=torch.long).to(device)
         # (1, batch)
         decoder_input = decoder_input.unsqueeze(0)
 
         # holds output
-        decoder_outputs = torch.zeros(config.MAX_TARGET_PARTS, 
+        decoder_outputs = torch.zeros(config.MAX_TARGET_PARTS+1, 
                                       config.BATCH_SIZE, 
-                                      self.target_vocab_size).to(device)
+                                      self.dict.target_vocab_size).to(device)
 
-        for t in range(config.MAX_TARGET_PARTS):
+        for t in range(config.MAX_TARGET_PARTS + 1):
             attn = self.attention(encode_context, context_mask, fake_encoder_state)
             
             decoder_output, decoder_hidden = self.decoder(decoder_input, 
@@ -164,11 +167,7 @@ class Code2Seq(nn.Module):
             decoder_outputs[t] = decoder_output
 
             if self.training:
-                # Does target need to be embedded in some way? :S
-                # Something is wrong with the <BOS>-tokens here.. 
-                # I add [1] manually assuming that is the index of <BOS>
-                padded_tar = torch.tensor([1]+list(target[t])).unsqueeze(0).to(device)
-                decoder_input = padded_tar
+                decoder_input = target[:,t].unsqueeze(0)
             else:
                 decoder_input = decoder_output.max(-1)[1] 
 
