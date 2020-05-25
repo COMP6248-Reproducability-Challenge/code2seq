@@ -9,7 +9,7 @@ from model import Code2Seq, config
 from loader import Dictionaries, get_loaders
 
 
-_mce = nn.CrossEntropyLoss(size_average=False, ignore_index=0)
+_mce = nn.CrossEntropyLoss(size_average=True, ignore_index=0)
 def masked_cross_entropy(logits, target):
     return _mce(logits.view(-1, logits.size(-1)), target.view(-1))
 
