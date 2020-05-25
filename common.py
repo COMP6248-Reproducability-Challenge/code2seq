@@ -11,6 +11,11 @@ import sys
 
 
 class Common:
+    internal_delimiter = "|"
+    UNK = "<UNK>"
+    PAD = "<PAD>"
+    SOS = "<S>"
+
     @staticmethod
     def load_vocab_from_dict(word_to_count, add_values=[], max_size=None):
         word_to_index, index_to_word = {}, {}
