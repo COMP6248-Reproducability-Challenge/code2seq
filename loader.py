@@ -44,14 +44,14 @@ class Dictionaries:
 
 
 class Code2SeqDataset(Dataset):
-    def __init__(self, data_file, conf, dicts):
+    def __init__(self, data_file, conf, dicts, device="cpu"):
         super(Dataset, self).__init__()
         data_file += ".h5"
         self.data_file = h5py.File((conf.H5_FOLDER / data_file), mode='r')
         self.config = conf
-
         self.dictionaries = dicts
-
+        self.device = device
+        
         self.max_length_target = self.config.MAX_TARGET_PARTS
         self.max_length_leaf = self.config.MAX_NAME_PARTS
         self.max_length_ast_path = self.config.MAX_PATH_LENGTH
