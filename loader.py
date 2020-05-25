@@ -12,11 +12,12 @@ from config import Config
 
 
 class Code2SeqDataset(Dataset):
-    def __init__(self, data_file, config):
+    def __init__(self, data_file, config, device):
         super(Dataset, self).__init__()
         data_file += ".h5"
         self.data_file = h5py.File((config.H5_FOLDER / data_file), mode='r')
         self.config = config
+        self.device = device
 
         with open(self.config.DICT_PATH, 'rb') as f:
             self.subtoken_to_count = pickle.load(f)
@@ -29,19 +30,23 @@ class Code2SeqDataset(Dataset):
 
         # Get subtoken vocab mapping
         self.subtoken_to_index, self.index_to_subtoken, self.subtoken_vocab_size = \
-            Common.load_vocab_from_dict(self.subtoken_to_count, add_values=['<PAD>', '<UNK>'],
+            Common.load_vocab_from_dict(self.subtoken_to_count, 
+                                        add_values=['<PAD>', '<UNK>'],
                                         max_size=self.config.SUBTOKENS_VOCAB_MAX_SIZE)
         print('Loaded subtoken vocab. size: %d' % self.subtoken_vocab_size)
 
         # Get target vocab mapping
         self.target_to_index, self.index_to_target, self.target_vocab_size = \
-            Common.load_vocab_from_dict(self.target_to_count, add_values=['<PAD>', '<UNK>', '<S>'],
+            Common.load_vocab_from_dict(self.target_to_count, 
+                                        add_values=['<PAD>', '<UNK>', '<S>'],
                                         max_size=self.config.TARGET_VOCAB_MAX_SIZE)
         print('Loaded target word vocab. size: %d' % self.target_vocab_size)
 
         # Get node vocab mapping
         self.node_to_index, self.index_to_node, self.nodes_vocab_size = \
-            Common.load_vocab_from_dict(self.node_to_count, add_values=['<PAD>', '<UNK>'], max_size=None)
+            Common.load_vocab_from_dict(self.node_to_count, 
+                                        add_values=['<PAD>', '<UNK>'], 
+                                        max_size=None)
         print('Loaded nodes vocab. size: %d' % self.nodes_vocab_size)
 
         self.max_length_target = self.config.MAX_TARGET_PARTS
@@ -61,13 +66,22 @@ class Code2SeqDataset(Dataset):
         contexts = contexts[:self.config.MAX_CONTEXTS]
 
         # Initialise matrices
-        start_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
-        ast_path_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_ast_path))
-        end_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
-        target_vector = torch.zeros(size=(self.max_length_target,))
+        start_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                              self.max_length_leaf),
+                                        dtype=torch.long)
+        ast_path_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                            self.max_length_ast_path),
+                                       dtype=torch.long)
+        end_leaf_matrix = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                            self.max_length_leaf),
+                                      dtype=torch.long)
+        target_vector = torch.zeros(size=(self.max_length_target,),
+                                    dtype=torch.long)
 
-        start_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
-        end_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, self.max_length_leaf))
+        start_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                            self.max_length_leaf))
+        end_leaf_mask = torch.zeros(size=(self.config.MAX_CONTEXTS,
+                                          self.max_length_leaf))
         target_mask = torch.zeros(size=(self.max_length_target,))
 
         context_mask = torch.zeros(size=(self.config.MAX_CONTEXTS, ))
@@ -80,9 +94,12 @@ class Code2SeqDataset(Dataset):
             ast_path = ast_path[:self.max_length_ast_path]
             leaf_node_2 = leaf_node_2[:self.max_length_leaf]
 
-            ast_path = [self.node_to_index.get(w, self.node_to_index['<UNK>']) for w in ast_path.split('|')]
-            leaf_node_1 = [self.subtoken_to_index.get(w, self.subtoken_to_index['<UNK>']) for w in leaf_node_1.split('|')]
-            leaf_node_2 = [self.subtoken_to_index.get(w, self.subtoken_to_index['<UNK>']) for w in leaf_node_2.split('|')]
+            ast_path = [self.node_to_index.get(w, self.node_to_index['<UNK>']) 
+                        for w in ast_path.split('|')]
+            leaf_node_1 = [self.subtoken_to_index.get(w, self.subtoken_to_index['<UNK>'])
+                           for w in leaf_node_1.split('|')]
+            leaf_node_2 = [self.subtoken_to_index.get(w, self.subtoken_to_index['<UNK>'])
+                           for w in leaf_node_2.split('|')]
 
             start_leaf_matrix[i, :len(leaf_node_1)] = torch.tensor(leaf_node_1)
             start_leaf_mask[i, :len(leaf_node_1)] = torch.ones(size=(len(leaf_node_1),))
@@ -96,13 +113,20 @@ class Code2SeqDataset(Dataset):
         context_mask[:len(contexts)] = torch.ones(size=(len(contexts),))
 
         word = word[:self.max_length_target]
-        target = [self.target_to_index.get(w, self.target_to_index['<UNK>']) for w in word.split('|')]
+        target = [self.target_to_index.get(w, self.target_to_index['<UNK>'])
+                  for w in word.split('|')]
         target_vector[:len(target)] = torch.tensor(target)
         target_mask[:len(target)] = torch.ones(size=(len(target),))
 
-        return (start_leaf_matrix, ast_path_matrix, end_leaf_matrix, target_vector,
-                start_leaf_mask, end_leaf_mask, target_mask, context_mask,
-                ast_path_lengths)
+        return start_leaf_matrix.to(self.device),\
+               ast_path_matrix.to(self.device),\
+               end_leaf_matrix.to(self.device),\
+               target_vector.to(self.device),\
+               start_leaf_mask.to(self.device),\
+               end_leaf_mask.to(self.device),\
+               target_mask.to(self.device),\
+               context_mask.to(self.device),\
+               ast_path_lengths.to(self.device)
 
 
 if __name__ == "__main__":
@@ -112,7 +136,10 @@ if __name__ == "__main__":
     train_set = Code2SeqDataset('train', config=config)
     val_set = Code2SeqDataset('val', config=config)
 
-    train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=config.NUM_WORKERS)
+    train_loader = DataLoader(train_set, 
+                              batch_size=config.BATCH_SIZE, 
+                               shuffle=True, 
+                               num_workers=config.NUM_WORKERS)
 
     for train_data in train_loader:
         print("start_leaf_matrix", train_data[0].shape)
@@ -125,6 +152,7 @@ if __name__ == "__main__":
         print("context_mask", train_data[7].shape)
         print("ast_path_lengths", train_data[8].shape)
 
-        print(" ".join([test_set.index_to_target.get(x.item(), '<UNK>') for x in train_data[3][0]]))
+        print(" ".join([test_set.index_to_target.get(x.item(), '<UNK>')
+                        for x in train_data[3][0]]))
         break
 
