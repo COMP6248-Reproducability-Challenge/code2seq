@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader
 
 from tqdm import tqdm
 
+import time
+
 from model import Code2Seq, config
 from loader import Dictionaries, get_loaders
 from common import Common
@@ -15,7 +17,7 @@ def masked_cross_entropy(logits, target):
     return _mce(logits.view(-1, logits.size(-1)), target.view(-1))
 
 
-def train(model, optimizer, loaders, epochs=10):
+def train(model, optimizer, loaders, epochs=1):
     train_loader = loaders['TRAIN_LOADER']
     val_loader = loaders['VAL_LOADER']
 
@@ -46,6 +48,12 @@ def train(model, optimizer, loaders, epochs=10):
                               f1='{:05.3f}'.format(epoch_f1),)
                 t.update()
 
+                if i % 200 == 0:
+                    ms = int(round(time.time()*1000))
+                    file_ = 'data/checkpoint_epoch_{}_{}_{}.tar'.format(i, epoch, ms)
+                    torch.save(model, file_)
+                    print('Model saved')
+
         with tqdm(total=len(val_loader), desc='VAL') as t:
             for i, batch in enumerate(val_loader):
                 start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
@@ -75,9 +83,8 @@ if __name__=='__main__':
     loaders = get_loaders(config, dicts, device)
 
     model = Code2Seq(dicts).to(device)
-
-    optimizer = optim.Adam(model.parameters())
     model.train(True)
 
-    train(model, optimizer, loaders, epochs=10)
+    optimizer = optim.Adam(model.parameters())
 
+    train(model, optimizer, loaders, epochs=10)
