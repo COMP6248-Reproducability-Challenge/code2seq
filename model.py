@@ -153,11 +153,11 @@ class Code2Seq(nn.Module):
         decoder_input = decoder_input.unsqueeze(0)
 
         # holds output
-        decoder_outputs = torch.zeros(config.MAX_TARGET_PARTS+1, 
+        decoder_outputs = torch.zeros(config.MAX_TARGET_PARTS,
                                       config.BATCH_SIZE, 
                                       self.dict.target_vocab_size).to(device)
 
-        for t in range(config.MAX_TARGET_PARTS + 1):
+        for t in range(config.MAX_TARGET_PARTS):
             attn = self.attention(encode_context, context_mask, fake_encoder_state)
             
             decoder_output, decoder_hidden = self.decoder(decoder_input, 
@@ -167,8 +167,22 @@ class Code2Seq(nn.Module):
             decoder_outputs[t] = decoder_output
 
             if self.training:
-                decoder_input = target[:,t].unsqueeze(0)
+                decoder_input = target.transpose(0,1)[t+1].unsqueeze(0)
             else:
                 decoder_input = decoder_output.max(-1)[1] 
 
         return decoder_outputs
+
+    def get_evaluation(self, predicted, targets):
+        true_positive, false_positive, false_negative = 0, 0, 0
+
+        for pred, targ in zip(predict, targets):
+            for word in pred:
+                if Common.word_not_meta_token(word, self.dict_.target_to_index):
+                    if word in targ: true_positive += 1
+                    else: false_positive += 1
+            for word in targ:
+                if Common.word_not_meta_token(word, self.dict_.target_to_index):
+                    if word not in pred: false_negative += 1
+
+        return true_positive, false_positive, false_negative
