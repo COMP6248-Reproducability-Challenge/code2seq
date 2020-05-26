@@ -64,7 +64,7 @@ class Code2SeqDataset(Dataset):
         row = self.data_file[str(item)]["row"][()]
         row = row.split()
 
-        word = row[0]
+        word = row[0].split('|')
         contexts = row[1:]
         shuffle(contexts)
         contexts = contexts[:self.config.MAX_CONTEXTS]
@@ -93,6 +93,7 @@ class Code2SeqDataset(Dataset):
 
         for idx, context in enumerate(contexts):
             leaf_node_1, ast_path, leaf_node_2 = context.split(',')
+            leaf_node_1, ast_path, leaf_node_2 = leaf_node_1.split('|'), ast_path.split('|'), leaf_node_2.split('|')
 
             leaf_node_1 = leaf_node_1[:self.max_length_leaf]
             ast_path = ast_path[:self.max_length_ast_path]
@@ -100,15 +101,15 @@ class Code2SeqDataset(Dataset):
 
             ast_path = [self.dictionaries.node_to_index.get(
                 w, self.dictionaries.node_to_index[Common.UNK]
-            ) for w in ast_path.split('|')]
+            ) for w in ast_path]
 
             leaf_node_1 = [self.dictionaries.subtoken_to_index.get(
                 w, self.dictionaries.subtoken_to_index[Common.UNK]
-            ) for w in leaf_node_1.split('|')]
+            ) for w in leaf_node_1]
 
             leaf_node_2 = [self.dictionaries.subtoken_to_index.get(
                 w, self.dictionaries.subtoken_to_index[Common.UNK]
-            ) for w in leaf_node_2.split('|')]
+            ) for w in leaf_node_2]
 
             start_leaf_matrix[idx, :len(leaf_node_1)] = torch.tensor(leaf_node_1)
             start_leaf_mask[idx, :len(leaf_node_1)] = torch.ones(size=(len(leaf_node_1),))
@@ -124,7 +125,7 @@ class Code2SeqDataset(Dataset):
         word = word[:self.max_length_target]
         target = [self.dictionaries.target_to_index.get(
             w, self.dictionaries.target_to_index[Common.UNK]
-        ) for w in word.split('|')]
+        ) for w in word]
         target_vector[0] = torch.tensor(self.dictionaries.target_to_index[Common.SOS])
         target_vector[1:len(target) + 1] = torch.tensor(target)
         target_mask[:len(target)] = torch.ones(size=(len(target),))
@@ -166,12 +167,14 @@ def get_loaders(conf, dicts, device='cpu'):
 
 
 if __name__ == "__main__":
+    import tqdm
     config = Config.get_default_config(None)
 
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     dictionaries = Dictionaries(config)
     loaders = get_loaders(config, dictionaries, device=device)
 
+    pbar = tqdm.tqdm(total=len(loaders['TRAIN_LOADER']))
     for i, train_data in enumerate(loaders['TRAIN_LOADER']):
         print("start_leaf_matrix", train_data[0].shape)
         print("ast_path_matrix", train_data[1].shape)
@@ -184,7 +187,8 @@ if __name__ == "__main__":
         print("ast_path_lengths", train_data[8].shape)
 
         for j in range(train_data[3].shape[0]):
-            print(" ".join([dictionaries.index_to_target.get(x.item(), Common.UNK) 
+            print(" ".join([dictionaries.index_to_target.get(x.item(), Common.UNK)
                   for x in train_data[3][j]]))
 
+        pbar.update(1)
         break
