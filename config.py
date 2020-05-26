@@ -10,7 +10,7 @@ class Config:
     def get_default_config(args):
         config = Config(args)
         config.SEED = 5
-        config.NUM_EPOCHS = 3000
+        config.NUM_EPOCHS = 1
         config.SAVE_EVERY_EPOCHS = 1
         config.PATIENCE = 10
         config.BATCH_SIZE = 128

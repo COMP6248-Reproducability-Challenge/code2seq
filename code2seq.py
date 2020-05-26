@@ -14,25 +14,52 @@ def masked_cross_entropy(logits, target):
     return _mce(logits.view(-1, logits.size(-1)), target.view(-1))
 
 
-def train(model, optimizer, loaders, epochs=10):
+def train(model, optimizer, loaders, epochs=1):
     train_loader = loaders['TRAIN_LOADER']
 
     for epoch in range(epochs):
         with tqdm(total=len(train_loader), desc='TRAIN') as t:
             epoch_loss = 0.0
-            for i, batch in enumerate(train_loader):
-                start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
-        
-                pred = model(*batch)
-                loss = masked_cross_entropy(pred.contiguous(), 
-                                            target.contiguous())
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
 
-                epoch_loss = (epoch_loss*i + loss.item()) / (i+1)
-                t.set_postfix(loss='{:05.3f}'.format(epoch_loss))
-                t.update()
+            state={
+		'epoch': epoch,
+    		'model': model,
+    		'optimizer': optimizer
+            }
+            #load the model
+            state=torch.load('checkpoint_epoch_0.tar')
+
+	    #to fix
+            epoch.load_state_dict(state['epoch'])
+            model.load_state_dict(state['model'])	
+            optimizer.load_state_dict(state['optimizer'])
+           
+
+
+            for i, batch in enumerate(train_loader):
+            
+               print("loop is:  ", i)
+               start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
+        
+               pred = model(*batch)
+               loss = masked_cross_entropy(pred.contiguous(), 
+                                            target.contiguous())
+               #print("loss is : ", loss)
+               optimizer.zero_grad()
+               loss.backward()
+               optimizer.step()
+
+               epoch_loss = (epoch_loss*i + loss.item()) / (i+1)
+               t.set_postfix(loss='{:05.3f}'.format(epoch_loss))
+               t.update()
+
+               #remove this to train properly
+               if(i==1):
+                   break
+
+	#save the model
+            filename="data/checkpoint_epoch_%s.tar" %epoch
+            torch.save(state, filename)
 
 
 if __name__=='__main__':
@@ -49,5 +76,6 @@ if __name__=='__main__':
     optimizer = optim.Adam(model.parameters())
     model.train(True)
 
-    train(model, optimizer, loaders, epochs=10)
+    train(model, optimizer, loaders, epochs=1)
 
+	
