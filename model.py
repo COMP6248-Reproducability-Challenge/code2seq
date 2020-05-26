@@ -79,23 +79,27 @@ class Decoder(nn.Module):
         
         self.embedding_target = nn.Embedding(target_input_dim, 
                                              config.DECODER_SIZE)
+        self.num_layers = 2
         self.lstm = nn.LSTMCell(config.DECODER_SIZE, config.DECODER_SIZE)
 
         self.lin = nn.Linear(config.DECODER_SIZE * 2, 
                              target_input_dim, bias=False)
 
-    def forward(self, seqs, hidden, attention):
+    def forward(self, seqs, hidden, encode_out, context_mask, attention):
         # (batch, max_target, embed_dim) -> (batch, embed_dim)
         emb = self.embedding_target(seqs).squeeze(0)
 
-        _, hidden = self.lstm(emb, hidden)
+        decode_out, hidden = self.lstm(emb, hidden)
+
+        # (batch, decode_size)
+        attention = attention(encode_out, context_mask, decode_out)
 
         # (batch, 2 * decode_size)
-        output = torch.cat([hidden, attention], dim=1)
+        output = torch.cat([decode_out, attention], dim=1)
         # (batch, target_input_dim)
         output = torch.tanh(self.lin(output))
 
-        return output, hidden
+        return output, (decode_out, hidden)
 
 
 class Code2Seq(nn.Module):
@@ -107,11 +111,9 @@ class Code2Seq(nn.Module):
                                self.dict_.nodes_vocab_size)
         self.decoder = Decoder(self.dict_.target_vocab_size)
 
-    def attention(self, encode_context, context_mask, hidden):
-        h_t, _ = hidden[0]
-
+    def attention(self, encode_context, context_mask, decode_out):
         # (batch, max_target)
-        attn = torch.bmm(encode_context, h_t.unsqueeze(-1)).squeeze(-1)
+        attn = torch.bmm(encode_context, decode_out.unsqueeze(-1)).squeeze(-1)
 
         # (batch, max_target)
         #n_context_mask = (context_mask == 0).type(torch.float) * -100000
@@ -141,9 +143,13 @@ class Code2Seq(nn.Module):
         # (batch, decode_size)
         init_state = contexts_sum / context_length
 
+        h_t = init_state.clone()
+        c_t = init_state.clone()
+        decoder_hidden = (h_t, c_t)
+
         # (h_t, c_t)
-        fake_encoder_state = tuple([init_state, init_state] for _ in
-                                   range(config.NUM_DECODER_LAYERS))
+        #decoder_hidden = tuple([init_state, init_state] for _ in
+                               #range(config.NUM_DECODER_LAYERS))
 
         # Empty input to decoder, only containing start-of-sequence tag
         SOS_token = self.dict_.target_to_index[Common.SOS]
@@ -158,12 +164,13 @@ class Code2Seq(nn.Module):
                                       self.dict_.target_vocab_size).to(device)
 
         for t in range(config.MAX_TARGET_PARTS):
-            attn = self.attention(encode_context, context_mask, fake_encoder_state)
+            #attn = self.attention(encode_context, context_mask, decoder_hidden)
             
             decoder_output, decoder_hidden = self.decoder(decoder_input, 
-                                                          *fake_encoder_state, 
-                                                          attn)
-
+                                                          decoder_hidden, 
+                                                          encode_context,
+                                                          context_mask,
+                                                          self.attention)
             decoder_outputs[t] = decoder_output
 
             if self.training:
