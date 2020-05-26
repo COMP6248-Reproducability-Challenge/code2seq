@@ -7,7 +7,7 @@ from common import Common
 
 
 # TODO: Fix this... 
-config = Config.get_default_config(None)
+config = Config.get_debug_config(None)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -102,10 +102,10 @@ class Code2Seq(nn.Module):
     def __init__(self, dictionaries):
         super(Code2Seq, self).__init__()
 
-        self.dict = dictionaries
-        self.encoder = Encoder(self.dict.subtoken_vocab_size,
-                               self.dict.nodes_vocab_size)
-        self.decoder = Decoder(self.dict.target_vocab_size)
+        self.dict_ = dictionaries
+        self.encoder = Encoder(self.dict_.subtoken_vocab_size,
+                               self.dict_.nodes_vocab_size)
+        self.decoder = Decoder(self.dict_.target_vocab_size)
 
     def attention(self, encode_context, context_mask, hidden):
         h_t, _ = hidden[0]
@@ -146,7 +146,7 @@ class Code2Seq(nn.Module):
                                    range(config.NUM_DECODER_LAYERS))
 
         # Empty input to decoder, only containing start-of-sequence tag
-        SOS_token = self.dict.target_to_index[Common.SOS]
+        SOS_token = self.dict_.target_to_index[Common.SOS]
         decoder_input = torch.tensor([SOS_token] * config.BATCH_SIZE, 
                                      dtype=torch.long).to(device)
         # (1, batch)
@@ -155,7 +155,7 @@ class Code2Seq(nn.Module):
         # holds output
         decoder_outputs = torch.zeros(config.MAX_TARGET_PARTS,
                                       config.BATCH_SIZE, 
-                                      self.dict.target_vocab_size).to(device)
+                                      self.dict_.target_vocab_size).to(device)
 
         for t in range(config.MAX_TARGET_PARTS):
             attn = self.attention(encode_context, context_mask, fake_encoder_state)
@@ -176,7 +176,7 @@ class Code2Seq(nn.Module):
     def get_evaluation(self, predicted, targets):
         true_positive, false_positive, false_negative = 0, 0, 0
 
-        for pred, targ in zip(predict, targets):
+        for pred, targ in zip(predicted, targets):
             for word in pred:
                 if Common.word_not_meta_token(word, self.dict_.target_to_index):
                     if word in targ: true_positive += 1
