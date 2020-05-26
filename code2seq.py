@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader
 
 from tqdm import tqdm
 
+import time
+
 from model import Code2Seq, config
 from loader import Dictionaries, get_loaders
 
@@ -20,31 +22,12 @@ def train(model, optimizer, loaders, epochs=1):
     for epoch in range(epochs):
         with tqdm(total=len(train_loader), desc='TRAIN') as t:
             epoch_loss = 0.0
-
-            state={
-		'epoch': epoch,
-    		'model': model,
-    		'optimizer': optimizer
-            }
-            #load the model
-            state=torch.load('checkpoint_epoch_0.tar')
-
-	    #to fix
-            epoch.load_state_dict(state['epoch'])
-            model.load_state_dict(state['model'])	
-            optimizer.load_state_dict(state['optimizer'])
-           
-
-
             for i, batch in enumerate(train_loader):
-            
-               print("loop is:  ", i)
                start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
         
                pred = model(*batch)
                loss = masked_cross_entropy(pred.contiguous(), 
                                             target.contiguous())
-               #print("loss is : ", loss)
                optimizer.zero_grad()
                loss.backward()
                optimizer.step()
@@ -53,13 +36,11 @@ def train(model, optimizer, loaders, epochs=1):
                t.set_postfix(loss='{:05.3f}'.format(epoch_loss))
                t.update()
 
-               #remove this to train properly
-               if(i==1):
-                   break
-
-	#save the model
-            filename="data/checkpoint_epoch_%s.tar" %epoch
-            torch.save(state, filename)
+               if i % 200 == 0:
+                   ms = int(round(time.time()*1000))
+                   file_ = 'data/checkpoint_epoch_{}_{}_{}.tar'.format(i, epoch, ms)
+                   torch.save(model, file_)
+                   print('Model saved')
 
 
 if __name__=='__main__':
@@ -72,10 +53,8 @@ if __name__=='__main__':
     loaders = get_loaders(config, dicts, device)
 
     model = Code2Seq(dicts).to(device)
-
-    optimizer = optim.Adam(model.parameters())
     model.train(True)
 
-    train(model, optimizer, loaders, epochs=1)
+    optimizer = optim.Adam(model.parameters())
 
-	
+    train(model, optimizer, loaders, epochs=10)
