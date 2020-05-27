@@ -19,6 +19,7 @@ def train(model, optimizer, criterion, loaders, epochs=1):
     val_loader = loaders['VAL_LOADER']
 
     for epoch in range(epochs):
+        model.train(True)
         with tqdm(total=len(train_loader), desc='TRAIN') as t:
             epoch_loss = 0.0
             epoch_f1 = 0.0
@@ -57,6 +58,7 @@ def train(model, optimizer, criterion, loaders, epochs=1):
                     torch.save(model, file_)
                     print('Model saved')
 
+        model.eval()
         with tqdm(total=len(val_loader), desc='VAL') as t:
             for i, batch in enumerate(val_loader):
                 start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
