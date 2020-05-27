@@ -18,6 +18,8 @@ def train(model, optimizer, criterion, loaders, epochs=1):
     train_loader = loaders['TRAIN_LOADER']
     val_loader = loaders['VAL_LOADER']
 
+    ms = int(round(time.time()*1000))
+
     for epoch in range(epochs):
         model.train(True)
         with tqdm(total=len(train_loader), desc='TRAIN') as t:
@@ -53,10 +55,17 @@ def train(model, optimizer, criterion, loaders, epochs=1):
                 t.update()
 
                 if i % 200 == 0:
-                    ms = int(round(time.time()*1000))
-                    file_ = 'data/checkpoint_epoch_{}_{}_{}.tar'.format(i, epoch, ms)
+                    # Get this out to std for plotting later
+                    print(epoch_loss)
+                    print(epoch_f1)
+
+                    file_ = 'data/{}_iteration_{}_epoch_{}.tar'.format(ms, i, epoch)
                     torch.save(model, file_)
                     print('Model saved')
+
+        file_ = 'data/{}_epoch_{}.tar'.format(ms, epoch)
+        torch.save(model, file_)
+        print('Model saved')
 
         model.eval()
         with tqdm(total=len(val_loader), desc='VAL') as t:
