@@ -60,7 +60,7 @@ def train(model, optimizer, criterion, loaders, epochs=1):
                     print(epoch_f1)
                     losses.append(epoch_loss)
                     f1s.append(epoch_f1)
-                    file_ = 'data/{}_iteration_{}_epoch_{}.tar'.format(ms, i, epoch+1)
+                    file_ = 'data/{}_iteration_{}_epoch_{}.tar'.format(ms, i, epoch)
                     torch.save(model, file_)
                     print('Model saved')
 
