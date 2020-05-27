@@ -116,7 +116,8 @@ class Decoder(nn.Module):
         output = self.input_lin(output)
         output = self.norm(output)
         output = torch.tanh(output)
-        output = self.output_lin(output).unsqueeze(1)
+        output = self.output_lin(output)
+        output = output.unsqueeze(1)
 
         return output, (hidden, cell)
 
@@ -167,10 +168,6 @@ class Code2Seq(nn.Module):
         c_t = init_state.clone()
         decoder_hidden = (h_t, c_t)
 
-        # (h_t, c_t)
-        #decoder_hidden = tuple([init_state, init_state] for _ in
-                               #range(config.NUM_DECODER_LAYERS))
-
         # Empty input to decoder, only containing start-of-sequence tag
         SOS_token = self.dict_.target_to_index[Common.SOS]
         decoder_input = torch.tensor([SOS_token] * config.BATCH_SIZE, 
@@ -182,9 +179,10 @@ class Code2Seq(nn.Module):
         decoder_outputs = torch.zeros(config.BATCH_SIZE,
                                       1,
                                       self.dict_.target_vocab_size).to(device)
-        target = self.embedding_target(target)
 
-        decoder_input = target[:, 0]
+        decoder_input = target[:, 0].clone()
+        decoder_input = self.embedding_target(decoder_input)
+        target = self.embedding_target(target)
         for t in range(config.MAX_TARGET_PARTS):
             decoder_output, decoder_hidden = self.decoder(decoder_input, 
                                                           decoder_hidden, 
@@ -197,7 +195,7 @@ class Code2Seq(nn.Module):
             if self.training:
                 decoder_input = target[:, t+1]
             else:
-                output = torch.softmax(decoder_output, dim=1)
+                output = torch.softmax(decoder_output.squeeze(1), dim=1)
                 output = torch.argmax(output, dim=1)
                 decoder_input = self.embedding_target(output)
 
