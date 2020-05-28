@@ -20,15 +20,17 @@ class Encoder(nn.Module):
         self.embedding_paths = nn.Embedding(nodes_vocab_size, 
                                             config.EMBEDDINGS_SIZE)
 
-        self.num_layers = 1
+        self.num_layers = 2
+        self.num_directions = 2 if config.BIRNN else 1
         self.lstm = nn.LSTM(config.EMBEDDINGS_SIZE, config.RNN_SIZE//2, 
-                            bidirectional=True, 
+                            bidirectional=config.BIRNN,
                             num_layers=self.num_layers,
                             dropout=(1 - config.RNN_DROPOUT_KEEP_PROB),
                             batch_first=True)
 
         self.lin = nn.Linear(config.EMBEDDINGS_SIZE * 2 + config.RNN_SIZE, 
                              config.DECODER_SIZE, bias=False)
+        self.dropout = nn.Dropout(p=(1 - config.EMBEDDINGS_DROPOUT_KEEP_PROB))
         self.norm = nn.LayerNorm(config.DECODER_SIZE)
 
     def forward(self, start_leaf, ast_path, end_leaf, start_leaf_mask, 
@@ -63,6 +65,9 @@ class Encoder(nn.Module):
 
         lstm_output, (hidden, cell) = self.lstm(path_embed_packed)
 
+        # Grab last layer only if multiple
+        hidden = hidden[-self.num_directions:, :, :]
+
         # (batch * max_contexts, rnn_size)
         hidden = hidden.view(config.BATCH_SIZE * config.MAX_CONTEXTS, config.RNN_SIZE)
 
@@ -81,6 +86,9 @@ class Encoder(nn.Module):
         context_embed = self.lin(context_embed)
         context_embed = self.norm(context_embed)
         context_embed = torch.tanh(context_embed)
+        if self.training:
+            print('ayo')
+            context_embed = self.dropout(context_embed)
 
         return context_embed
 
