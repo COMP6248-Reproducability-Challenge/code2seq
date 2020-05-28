@@ -18,56 +18,56 @@ def train(model, optimizer, criterion, train_loader, val_loader, epochs=1):
 
     out_data = []
     for epoch in range(epochs):
-        # model.train(True)
-        # with tqdm(total=len(train_loader), desc='TRAIN') as t:
-        #     epoch_loss = 0.0
-        #     epoch_f1 = 0.0
-        #     train_losses = []
-        #     train_f1s = []
-        #     for i, batch in enumerate(train_loader):
-        #         start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
-        #
-        #         pred = model(*batch)
-        #         # Remove <SOS>
-        #         pred = pred[:, 1:]
-        #         target = target[:, 1:]
-        #
-        #         pred_ = pred.permute(0, 2, 1)
-        #         # BCE loss
-        #         result_loss = criterion(pred_, target)
-        #         # Remove padding from loss
-        #         loss = result_loss * target_mask
-        #
-        #         loss = torch.sum(loss) / config.BATCH_SIZE
-        #
-        #         optimizer.zero_grad()
-        #         loss.backward()
-        #         optimizer.step()
-        #
-        #         eval_ = model.get_evaluation(pred, target)
-        #         precision, recall, f1 = Common.get_scores(*eval_)
-        #
-        #         epoch_loss = (epoch_loss * i + loss.item()) / (i + 1)
-        #         epoch_f1 = (epoch_f1 * i + f1) / (i + 1)
-        #         t.set_postfix(loss='{:05.3f}'.format(epoch_loss),
-        #                       f1='{:05.3f}'.format(epoch_f1), )
-        #         t.update()
-        #
-        #         if i % 200 == 0:
-        #             # Get this out to std for plotting later
-        #             print(epoch_loss)
-        #             print(epoch_f1)
-        #             train_losses.append(epoch_loss)
-        #             train_f1s.append(epoch_f1)
-        #             file_ = 'data/{}_iteration_{}_epoch_{}.tar'.format(ms, i, epoch)
-        #             torch.save(model, file_)
-        #             print('Model saved')
-        #
-        # print(train_losses)
-        # print(train_f1s)
-        # file_ = 'data/{}_epoch_{}.tar'.format(ms, epoch)
-        # torch.save(model, file_)
-        # print('Model saved')
+        model.train(True)
+        with tqdm(total=len(train_loader), desc='TRAIN') as t:
+            epoch_loss = 0.0
+            epoch_f1 = 0.0
+            train_losses = []
+            train_f1s = []
+            for i, batch in enumerate(train_loader):
+                start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
+
+                pred = model(*batch)
+                # Remove <SOS>
+                pred = pred[:, 1:]
+                target = target[:, 1:]
+
+                pred_ = pred.permute(0, 2, 1)
+                # BCE loss
+                result_loss = criterion(pred_, target)
+                # Remove padding from loss
+                loss = result_loss * target_mask
+
+                loss = torch.sum(loss) / config.BATCH_SIZE
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                eval_ = model.get_evaluation(pred, target)
+                precision, recall, f1 = Common.get_scores(*eval_)
+
+                epoch_loss = (epoch_loss * i + loss.item()) / (i + 1)
+                epoch_f1 = (epoch_f1 * i + f1) / (i + 1)
+                t.set_postfix(loss='{:05.3f}'.format(epoch_loss),
+                              f1='{:05.3f}'.format(epoch_f1), )
+                t.update()
+
+                if i % 200 == 0:
+                    # Get this out to std for plotting later
+                    print(epoch_loss)
+                    print(epoch_f1)
+                    train_losses.append(epoch_loss)
+                    train_f1s.append(epoch_f1)
+                    file_ = 'data/{}_iteration_{}_epoch_{}.tar'.format(ms, i, epoch)
+                    torch.save(model, file_)
+                    print('Model saved')
+
+        print(train_losses)
+        print(train_f1s)
+        file_ = 'data/{}_epoch_{}.tar'.format(ms, epoch)
+        torch.save(model, file_)
+        print('Model saved')
 
         model.eval()
         with tqdm(total=len(val_loader), desc='VAL') as t:
@@ -114,10 +114,10 @@ if __name__ == '__main__':
                         default="./data/java-small.dict.c2s",
                         help="path of input data")
     parser.add_argument("--trainpath",
-                        default="./data/train.h5",
+                        default="./data/h5/train.h5",
                         help="path of train data")
     parser.add_argument("--validpath",
-                        default="./data/val.h5",
+                        default="./data/h5/val.h5",
                         help="path of valid data")
     parser.add_argument("--trainnum", type=int, default=691974,
                         help="size of train data")

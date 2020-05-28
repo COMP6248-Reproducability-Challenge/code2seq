@@ -22,7 +22,7 @@ class C2SDataSet(Dataset):
         return self.size
 
     def __getitem__(self, index):
-        line = self.f[str(index)]["line"][()]
+        line = self.f[str(index)]["row"][()]
         ss = line.split(" ")
         sss = [s.split(",") for s in ss[1:] if len(s) > 3]
         starts = []
