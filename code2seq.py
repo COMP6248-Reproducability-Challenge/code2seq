@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch import optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 from tqdm import tqdm
 import h5py
@@ -145,10 +145,15 @@ if __name__ == '__main__':
         config, train_h5, args.trainnum, dicts.subtoken_to_index,
         dicts.node_to_index, dicts.target_to_index, device
     )
+
+    # train_set = Subset(train_set, list(range(691800, len(train_set))))
+
     val_set = C2SDataSet(
         config, val_h5, args.validnum, dicts.subtoken_to_index,
         dicts.node_to_index, dicts.target_to_index, device
     )
+
+    # val_set = Subset(val_set, list(range(23700, len(val_set))))
 
     train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=config.BATCH_SIZE, shuffle=True)
