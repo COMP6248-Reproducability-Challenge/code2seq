@@ -17,6 +17,34 @@ class Common:
     SOS = "<S>"
 
     @staticmethod
+    def word_not_meta_token(word, token_mapping):
+        if word != token_mapping[Common.PAD] and \
+             word != token_mapping[Common.UNK] and \
+             word != token_mapping[Common.SOS]:
+             return True
+
+    # https://github.com/tech-srl/code2seq/blob/ec0ae309efba815a6ee8af88301479888b20daa9/model.py#L282
+    @staticmethod
+    def get_scores(true_positive, false_positive, false_negative):
+        if true_positive + false_positive > 0:
+            precision = true_positive / (true_positive + false_positive)
+        else:
+            precision = 0
+
+        if true_positive + false_negative > 0:
+            recall = true_positive / (true_positive + false_negative)
+        else:
+            recall = 0
+
+        if precision + recall > 0:
+            f1 = 2 * precision * recall / (precision + recall)
+        else:
+            f1 = 0
+
+        return precision, recall, f1
+
+
+    @staticmethod
     def load_vocab_from_dict(word_to_count, add_values=[], max_size=None):
         word_to_index, index_to_word = {}, {}
         current_index = 0

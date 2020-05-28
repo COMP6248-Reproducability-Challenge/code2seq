@@ -21,14 +21,17 @@ class Encoder(nn.Module):
                                             config.EMBEDDINGS_SIZE)
 
         self.num_layers = 2
+        self.num_directions = 2 if config.BIRNN else 1
         self.lstm = nn.LSTM(config.EMBEDDINGS_SIZE, config.RNN_SIZE//2, 
-                            bidirectional=True, 
+                            bidirectional=config.BIRNN,
                             num_layers=self.num_layers,
                             dropout=(1 - config.RNN_DROPOUT_KEEP_PROB),
                             batch_first=True)
 
         self.lin = nn.Linear(config.EMBEDDINGS_SIZE * 2 + config.RNN_SIZE, 
                              config.DECODER_SIZE, bias=False)
+        self.dropout = nn.Dropout(p=(1 - config.EMBEDDINGS_DROPOUT_KEEP_PROB))
+        self.norm = nn.LayerNorm(config.DECODER_SIZE)
 
     def forward(self, start_leaf, ast_path, end_leaf, start_leaf_mask, 
                 end_leaf_mask, ast_path_lengths):
@@ -52,23 +55,39 @@ class Encoder(nn.Module):
         flat_paths = path_embed.view(-1, config.MAX_PATH_LENGTH, 
                                       config.EMBEDDINGS_SIZE)
 
-        lstm_output, (hidden, cell) = self.lstm(flat_paths) 
-        hidden = hidden[-self.num_layers:, :, :]
-        hidden = hidden.transpose(0, 1)
-        # (batch * max_contexts, rnn_size)
-        final_rnn_state = torch.reshape(hidden, (hidden.size()[0], -1))
+        # TODO: Clean this up
+        ast_path_lengths[ast_path_lengths == 0] = 1
 
-        # (batch, max_contexts, rnn_size)
-        path_aggregated = torch.reshape(final_rnn_state,
-                                        (-1, max_context, config.RNN_SIZE))
+        ordered_len, ordered_idx = ast_path_lengths.view(
+            config.BATCH_SIZE  * config.MAX_CONTEXTS, ).sort(0, descending=True)
+        path_embed_packed = nn.utils.rnn.pack_padded_sequence(
+            flat_paths, ordered_len, batch_first=True)
+
+        lstm_output, (hidden, cell) = self.lstm(path_embed_packed)
+
+        # Grab last layer only if multiple
+        hidden = hidden[-self.num_directions:, :, :]
+
+        # (batch * max_contexts, rnn_size)
+        hidden = hidden.view(config.BATCH_SIZE * config.MAX_CONTEXTS, config.RNN_SIZE)
+
+        final_rnn_state = torch.index_select(hidden, 0, ordered_idx)
+        # (batch, max_context, rnn_size)
+        final_rnn_state = final_rnn_state.view(config.BATCH_SIZE,
+                                               config.MAX_CONTEXTS,
+                                               config.RNN_SIZE)
 
 
         # (batch, max_contexts, embed_dim * 2 + rnn_size
-        context_embed = torch.cat([start_embed, path_aggregated, end_embed], 
+        context_embed = torch.cat([start_embed, final_rnn_state, end_embed],
                                   dim=-1)
 
         # (batch, max_contexts, decoder_size)
-        context_embed = torch.tanh(self.lin(context_embed))
+        context_embed = self.lin(context_embed)
+        context_embed = self.norm(context_embed)
+        context_embed = torch.tanh(context_embed)
+        if self.training:
+            context_embed = self.dropout(context_embed)
 
         return context_embed
 
@@ -77,46 +96,58 @@ class Decoder(nn.Module):
     def __init__(self, target_input_dim):
         super(Decoder, self).__init__()
         
-        self.embedding_target = nn.Embedding(target_input_dim, 
-                                             config.DECODER_SIZE)
-        self.lstm = nn.LSTMCell(config.DECODER_SIZE, config.DECODER_SIZE)
 
-        self.lin = nn.Linear(config.DECODER_SIZE * 2, 
-                             target_input_dim, bias=False)
+        self.num_layers = 2
+        self.lstm = nn.LSTMCell(config.EMBEDDINGS_SIZE, config.DECODER_SIZE)
 
-    def forward(self, seqs, hidden, attention):
+        self.input_lin = nn.Linear(config.DECODER_SIZE * 2,
+                                   config.DECODER_SIZE)
+        self.norm = nn.LayerNorm(config.DECODER_SIZE)
+        self.output_lin = nn.Linear(config.DECODER_SIZE,
+                                    target_input_dim,
+                                    bias=False)
+
+
+    def forward(self, input_, hidden, encode_out, context_mask, attention):
         # (batch, max_target, embed_dim) -> (batch, embed_dim)
-        emb = self.embedding_target(seqs).squeeze(0)
+        #emb = self.embedding_target(seqs).squeeze(0)
 
-        _, hidden = self.lstm(emb, hidden)
+        hidden, cell = self.lstm(input_, hidden)
+
+        # (batch, decode_size)
+        attention = attention(encode_out, context_mask, hidden)
 
         # (batch, 2 * decode_size)
-        output = torch.cat([hidden, attention], dim=1)
+        output = torch.cat([attention, hidden], dim=1)
         # (batch, target_input_dim)
-        output = torch.tanh(self.lin(output))
+        output = self.input_lin(output)
+        output = self.norm(output)
+        output = torch.tanh(output)
+        output = self.output_lin(output)
+        output = output.unsqueeze(1)
 
-        return output, hidden
+        return output, (hidden, cell)
 
 
 class Code2Seq(nn.Module):
     def __init__(self, dictionaries):
         super(Code2Seq, self).__init__()
 
-        self.dict = dictionaries
-        self.encoder = Encoder(self.dict.subtoken_vocab_size,
-                               self.dict.nodes_vocab_size)
-        self.decoder = Decoder(self.dict.target_vocab_size)
+        self.dict_ = dictionaries
+        self.embedding_target = nn.Embedding(self.dict_.target_vocab_size,
+                                             config.EMBEDDINGS_SIZE)
+        self.encoder = Encoder(self.dict_.subtoken_vocab_size,
+                               self.dict_.nodes_vocab_size)
+        self.decoder = Decoder(self.dict_.target_vocab_size)
 
-    def attention(self, encode_context, context_mask, hidden):
-        h_t, _ = hidden[0]
-
+    def attention(self, encode_context, context_mask, decode_out):
         # (batch, max_target)
-        attn = torch.bmm(encode_context, h_t.unsqueeze(-1)).squeeze(-1)
+        attn = torch.bmm(encode_context, decode_out.unsqueeze(-1)).squeeze(-1)
 
+        # -10000 to remove activation from non-attended areas
         # (batch, max_target)
-        #n_context_mask = (context_mask == 0).type(torch.float) * -100000
-        #attn = attn + n_context_mask
-        attn = attn + context_mask
+        n_context_mask = (context_mask == 0).type(torch.float) * -100000
+        attn = attn + n_context_mask
 
         attn_weight = F.softmax(attn, dim=1)
         # (batch, decode_size)
@@ -131,8 +162,7 @@ class Code2Seq(nn.Module):
                                       ast_path_lengths)
 
         # (batch, decode_size)
-        contexts_sum = torch.sum(
-            encode_context * context_mask.unsqueeze(-1), dim=1)
+        contexts_sum = torch.sum(encode_context, dim=1)
                                  
         # (batch, 1)
         context_length = torch.sum(
@@ -141,34 +171,54 @@ class Code2Seq(nn.Module):
         # (batch, decode_size)
         init_state = contexts_sum / context_length
 
-        # (h_t, c_t)
-        fake_encoder_state = tuple([init_state, init_state] for _ in
-                                   range(config.NUM_DECODER_LAYERS))
+        h_t = init_state.clone()
+        c_t = init_state.clone()
+        decoder_hidden = (h_t, c_t)
 
         # Empty input to decoder, only containing start-of-sequence tag
-        SOS_token = self.dict.target_to_index[Common.SOS]
+        SOS_token = self.dict_.target_to_index[Common.SOS]
         decoder_input = torch.tensor([SOS_token] * config.BATCH_SIZE, 
                                      dtype=torch.long).to(device)
         # (1, batch)
         decoder_input = decoder_input.unsqueeze(0)
 
         # holds output
-        decoder_outputs = torch.zeros(config.MAX_TARGET_PARTS+1, 
-                                      config.BATCH_SIZE, 
-                                      self.dict.target_vocab_size).to(device)
+        decoder_outputs = torch.zeros(config.BATCH_SIZE,
+                                      1,
+                                      self.dict_.target_vocab_size).to(device)
 
-        for t in range(config.MAX_TARGET_PARTS + 1):
-            attn = self.attention(encode_context, context_mask, fake_encoder_state)
-            
+        decoder_input = target[:, 0].clone()
+        decoder_input = self.embedding_target(decoder_input)
+        target = self.embedding_target(target)
+        for t in range(config.MAX_TARGET_PARTS):
             decoder_output, decoder_hidden = self.decoder(decoder_input, 
-                                                          *fake_encoder_state, 
-                                                          attn)
-
-            decoder_outputs[t] = decoder_output
+                                                          decoder_hidden, 
+                                                          encode_context,
+                                                          context_mask,
+                                                          self.attention)
+            decoder_outputs = torch.cat([decoder_outputs, decoder_output],
+                                        dim=1)
 
             if self.training:
-                decoder_input = target[:,t].unsqueeze(0)
+                decoder_input = target[:, t+1]
             else:
-                decoder_input = decoder_output.max(-1)[1] 
+                output = torch.softmax(decoder_output.squeeze(1), dim=1)
+                output = torch.argmax(output, dim=1)
+                decoder_input = self.embedding_target(output)
 
         return decoder_outputs
+
+    def get_evaluation(self, predicted, targets):
+        true_positive, false_positive, false_negative = 0, 0, 0
+
+        predicted = torch.argmax(predicted, dim=2)
+        for pred, targ in zip(predicted, targets):
+            for word in pred:
+                if Common.word_not_meta_token(word, self.dict_.target_to_index):
+                    if word in targ: true_positive += 1
+                    else: false_positive += 1
+            for word in targ:
+                if Common.word_not_meta_token(word, self.dict_.target_to_index):
+                    if word not in pred: false_negative += 1
+
+        return true_positive, false_positive, false_negative

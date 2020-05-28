@@ -149,15 +149,18 @@ def get_loaders(conf, dicts, device='cpu'):
     test_loader = DataLoader(test_set,
                              batch_size=conf.BATCH_SIZE,
                              shuffle=True,
-                             num_workers=conf.NUM_WORKERS)
+                             num_workers=conf.NUM_WORKERS,
+                             drop_last=True)
     train_loader = DataLoader(train_set,
                               batch_size=conf.BATCH_SIZE,
                               shuffle=True,
-                              num_workers=conf.NUM_WORKERS)
+                              num_workers=conf.NUM_WORKERS,
+                              drop_last=True)
     val_loader = DataLoader(val_set,
                             batch_size=conf.BATCH_SIZE,
                             shuffle=True,
-                            num_workers=conf.NUM_WORKERS)
+                            num_workers=conf.NUM_WORKERS,
+                            drop_last=True)
 
     return {
         'TRAIN_LOADER': train_loader,
