@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import h5py
 import time
+import pickle
 
 from model import Code2Seq, config
 from loader import Dictionaries, get_loaders
@@ -15,13 +16,14 @@ from dataset import C2SDataSet
 def train(model, optimizer, criterion, train_loader, val_loader, epochs=1):
     ms = int(round(time.time() * 1000))
 
+    out_data = []
     for epoch in range(epochs):
         model.train(True)
         with tqdm(total=len(train_loader), desc='TRAIN') as t:
             epoch_loss = 0.0
             epoch_f1 = 0.0
-            losses = []
-            f1s = []
+            train_losses = []
+            train_f1s = []
             for i, batch in enumerate(train_loader):
                 start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
 
@@ -55,14 +57,14 @@ def train(model, optimizer, criterion, train_loader, val_loader, epochs=1):
                     # Get this out to std for plotting later
                     print(epoch_loss)
                     print(epoch_f1)
-                    losses.append(epoch_loss)
-                    f1s.append(epoch_f1)
+                    train_losses.append(epoch_loss)
+                    train_f1s.append(epoch_f1)
                     file_ = 'data/{}_iteration_{}_epoch_{}.tar'.format(ms, i, epoch)
                     torch.save(model, file_)
                     print('Model saved')
 
-        print(losses)
-        print(f1s)
+        print(train_losses)
+        print(train_f1s)
         file_ = 'data/{}_epoch_{}.tar'.format(ms, epoch)
         torch.save(model, file_)
         print('Model saved')
@@ -71,6 +73,8 @@ def train(model, optimizer, criterion, train_loader, val_loader, epochs=1):
         with tqdm(total=len(val_loader), desc='VAL') as t:
             epoch_loss = 0.0
             epoch_f1 = 0.0
+            val_losses = []
+            val_f1s = []
             for i, batch in enumerate(val_loader):
                 start_leaf, ast_path, end_leaf, target, start_leaf_mask, end_leaf_mask, target_mask, context_mask, ast_path_lengths = batch
 
@@ -91,10 +95,14 @@ def train(model, optimizer, criterion, train_loader, val_loader, epochs=1):
 
                 epoch_loss = (epoch_loss * i + loss.item()) / (i + 1)
                 epoch_f1 = (epoch_f1 * i + f1) / (i + 1)
+                val_losses.append(epoch_loss)
+                val_f1s.append(epoch_f1)
                 t.set_postfix(loss='{:05.3f}'.format(epoch_loss),
                               f1='{:05.3f}'.format(epoch_f1), )
                 t.update()
-
+        out_data.append([train_losses, train_f1s, val_losses, val_f1s])
+        with open('results_save.file', 'wb') as f:
+            pickle.dump(out_data, f)
 
 if __name__ == '__main__':
     import argparse

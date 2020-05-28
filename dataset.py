@@ -107,17 +107,17 @@ class C2SDataSet(Dataset):
         target.append(self.target_dict["<PAD>"])  # eos
         target_mask = [1] * (len(target)-1)  # sos
         target_mask += [0] * \
-            (self.max_target_length - len(target))
+            (self.max_target_length + 1 - len(target))
         target += [self.target_dict["<PAD>"]] * \
-            (self.max_target_length - len(target))
+            (self.max_target_length + 1 - len(target))
 
         return torch.tensor(starts, dtype=torch.long).to(self.device),\
             torch.tensor(paths, dtype=torch.long).to(self.device),\
             torch.tensor(ends, dtype=torch.long).to(self.device),\
-            torch.tensor(target, dtype=torch.long).to(self.device),\
-            torch.tensor(
-            context_mask, dtype=torch.float).to(self.device),\
-            torch.tensor(start_mask, dtype=torch.float).to(self.device),\
-            torch.tensor(path_length, dtype=torch.int64).to(self.device),\
-            torch.tensor(end_mask, dtype=torch.float).to(self.device),\
-            torch.tensor(target_mask, dtype=torch.float).to(self.device)
+            torch.tensor(target, dtype=torch.long).to(self.device), \
+            torch.tensor(start_mask, dtype=torch.float).to(self.device), \
+            torch.tensor(end_mask, dtype=torch.float).to(self.device), \
+            torch.tensor(target_mask, dtype=torch.float).to(self.device), \
+            torch.tensor(context_mask, dtype=torch.float).to(self.device),\
+            torch.tensor(path_length, dtype=torch.int64).to(self.device)
+
