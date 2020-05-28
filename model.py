@@ -87,7 +87,6 @@ class Encoder(nn.Module):
         context_embed = self.norm(context_embed)
         context_embed = torch.tanh(context_embed)
         if self.training:
-            print('ayo')
             context_embed = self.dropout(context_embed)
 
         return context_embed
