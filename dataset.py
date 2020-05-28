@@ -1,3 +1,8 @@
+# MIT License
+#
+# Copyright (c) 2019 hukuda222
+#
+# https://github.com/hukuda222/code2seq
 from torch.utils.data import Dataset
 import torch
 from numpy import random as rnd

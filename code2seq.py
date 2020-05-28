@@ -147,14 +147,14 @@ if __name__ == '__main__':
         dicts.node_to_index, dicts.target_to_index, device
     )
 
-    # train_set = Subset(train_set, list(range(691800, len(train_set))))
+    # train_set = Subset(train_set, list(range(1280)))
 
     val_set = C2SDataSet(
         config, val_h5, args.validnum, dicts.subtoken_to_index,
         dicts.node_to_index, dicts.target_to_index, device
     )
 
-    # val_set = Subset(val_set, list(range(23700, len(val_set))))
+    # val_set = Subset(val_set, list(range(1280)))
 
     train_loader = DataLoader(train_set, batch_size=config.BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=config.BATCH_SIZE, shuffle=True)
