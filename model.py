@@ -36,6 +36,7 @@ class Encoder(nn.Module):
     def forward(self, start_leaf, ast_path, end_leaf, start_leaf_mask, 
                 end_leaf_mask, ast_path_lengths):
         # (batch, max_context, max_name_parts, embed_dim)
+        batch_size = start_leaf.shape[0]
         start_embed = self.embedding_subtokens(start_leaf)
         end_embed = self.embedding_subtokens(end_leaf)
 
@@ -58,8 +59,7 @@ class Encoder(nn.Module):
         # TODO: Clean this up
         ast_path_lengths[ast_path_lengths == 0] = 1
 
-        ordered_len, ordered_idx = ast_path_lengths.view(
-            config.BATCH_SIZE  * config.MAX_CONTEXTS, ).sort(0, descending=True)
+        ordered_len, ordered_idx = ast_path_lengths.view(-1).sort(0, descending=True)
         path_embed_packed = nn.utils.rnn.pack_padded_sequence(
             flat_paths, ordered_len, batch_first=True)
 
@@ -69,11 +69,11 @@ class Encoder(nn.Module):
         hidden = hidden[-self.num_directions:, :, :]
 
         # (batch * max_contexts, rnn_size)
-        hidden = hidden.view(config.BATCH_SIZE * config.MAX_CONTEXTS, config.RNN_SIZE)
+        hidden = hidden.view(-1, config.RNN_SIZE)
 
         final_rnn_state = torch.index_select(hidden, 0, ordered_idx)
         # (batch, max_context, rnn_size)
-        final_rnn_state = final_rnn_state.view(config.BATCH_SIZE,
+        final_rnn_state = final_rnn_state.view(-1,
                                                config.MAX_CONTEXTS,
                                                config.RNN_SIZE)
 
@@ -160,10 +160,10 @@ class Code2Seq(nn.Module):
         encode_context = self.encoder(start_leaf, ast_path, end_leaf, 
                                       start_leaf_mask, end_leaf_mask, 
                                       ast_path_lengths)
-
         # (batch, decode_size)
         contexts_sum = torch.sum(encode_context, dim=1)
-                                 
+        batch_size = contexts_sum.shape[0]
+
         # (batch, 1)
         context_length = torch.sum(
             context_mask > 0, dim=1, keepdim=True, dtype=torch.float)
@@ -183,7 +183,7 @@ class Code2Seq(nn.Module):
         decoder_input = decoder_input.unsqueeze(0)
 
         # holds output
-        decoder_outputs = torch.zeros(config.BATCH_SIZE,
+        decoder_outputs = torch.zeros(batch_size,
                                       1,
                                       self.dict_.target_vocab_size).to(device)
 
